@@ -1749,11 +1749,32 @@ kiblnd_fmr_pool_unmap(struct kib_fmr *fmr, int status)
 	{
 		struct kib_fast_reg_descriptor *frd = fmr->fmr_frd;
 		if (frd) {
-			frd->frd_posted = false;
+			/*
+			 * When status is -EIO, it means the MR was unmapped due to
+			 * an error (e.g., connection error, WC failure). The hardware
+			 * may still have pending operations on this MR, so we cannot
+			 * safely reuse it. Destroy it to avoid Bad memory key errors.
+			 */
+			if (status == -EIO) {
+				pr_warn("o2iblnd: ERROR UNMAP: destroying frd=%p, key=0x%x due to error status\n",
+					frd, frd->frd_mr->rkey);
+				
+				/* Destroy MR instead of returning it to pool */
+				ib_dereg_mr(frd->frd_mr);
+#ifndef HAVE_IB_MAP_MR_SG
+				if (frd->frd_frpl)
+					ib_free_fast_reg_page_list(frd->frd_frpl);
+#endif
+				LIBCFS_FREE(frd, sizeof(*frd));
+			} else {
+				/* Normal completion, return frd to pool */
+				frd->frd_posted = false;
+				spin_lock(&fps->fps_lock);
+				list_add_tail(&frd->frd_list, &fpo->fast_reg.fpo_pool_list);
+				spin_unlock(&fps->fps_lock);
+			}
+			
 			fmr->fmr_frd = NULL;
-			spin_lock(&fps->fps_lock);
-			list_add_tail(&frd->frd_list, &fpo->fast_reg.fpo_pool_list);
-			spin_unlock(&fps->fps_lock);
 		}
 	}
 	fmr->fmr_pool = NULL;
