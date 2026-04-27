@@ -1,0 +1,62 @@
+From 370828a19679879d6c8654595604d803585002fc Mon Sep 17 00:00:00 2001
+From: wangshuobin <w14767780617@163.com>
+Date: Wed, 21 Jan 2026 16:56:53 +0800
+Subject: [PATCH] new-ext4-inode-version
+
+Signed-off-by: wangshuobin <w14767780617@163.com>
+---
+ fs/ext4/ext4.h   | 2 ++
+ fs/ext4/ialloc.c | 1 +
+ fs/ext4/inode.c  | 4 ++--
+ 3 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/fs/ext4/ext4.h b/fs/ext4/ext4.h
+index 85dae81..a1f4b1e 100644
+--- a/fs/ext4/ext4.h
++++ b/fs/ext4/ext4.h
+@@ -1160,6 +1160,8 @@ struct ext4_inode_info {
+ 	struct dquot *i_dquot[MAXQUOTAS];
+ #endif
+ 
++	__u64 i_fs_version;
++
+ 	/* Precomputed uuid+inum+igen checksum for seeding inode checksums */
+ 	__u32 i_csum_seed;
+ 
+diff --git a/fs/ext4/ialloc.c b/fs/ext4/ialloc.c
+index 875af32..de662a0 100644
+--- a/fs/ext4/ialloc.c
++++ b/fs/ext4/ialloc.c
+@@ -1258,6 +1258,7 @@ got:
+ 	ei->i_dtime = 0;
+ 	ei->i_block_group = group;
+ 	ei->i_last_alloc_group = ~0;
++        ei->i_fs_version = 0;
+ 
+ 	ext4_set_inode_flags(inode, true);
+ 	if (IS_DIRSYNC(inode))
+diff --git a/fs/ext4/inode.c b/fs/ext4/inode.c
+index 74f2504..5b95e20 100644
+--- a/fs/ext4/inode.c
++++ b/fs/ext4/inode.c
+@@ -4245,7 +4245,7 @@ static inline u64 ext4_inode_peek_iversion(const struct inode *inode)
+ 	if (unlikely(EXT4_I(inode)->i_flags & EXT4_EA_INODE_FL))
+ 		return inode_peek_iversion_raw(inode);
+ 	else
+-		return inode_peek_iversion(inode);
++                return EXT4_I(inode)->i_fs_version;
+ }
+ 
+ static int ext4_inode_blocks_set(struct ext4_inode *raw_inode,
+@@ -4683,7 +4683,7 @@ static inline void ext4_inode_set_iversion_queried(struct inode *inode, u64 val)
+ 	if (unlikely(EXT4_I(inode)->i_flags & EXT4_EA_INODE_FL))
+ 		inode_set_iversion_raw(inode, val);
+ 	else
+-		inode_set_iversion_queried(inode, val);
++                EXT4_I(inode)->i_fs_version = val;
+ }
+ 
+ struct inode *__ext4_iget(struct super_block *sb, unsigned long ino,
+-- 
+2.33.0
+
